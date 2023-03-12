@@ -1,6 +1,9 @@
 import { assert } from "@vue/compiler-core";
 import * as deepcopy from 'deepcopy';
 import fs from 'fs';
+import NeuralNetwork from "./NN/NeuralNetwork.js";
+import tf, { math } from '@tensorflow/tfjs-node-gpu'
+import asciichart from "asciichart";
 
 const boardSize = 8;
 
@@ -77,10 +80,11 @@ class CheckersBoard {
         return this.checkers[cellIndex];
     }
 
-    printBoard(currentId=null) {
+    printBoard(currentId=null, moveCount=null) {
         let symbols = ["X", "0"]
         let output = ""
         if (currentId != null) output = "Current Player: " + symbols[currentId] + "\n";
+        if (moveCount != null) output += "Move Count: " + moveCount + "\n";
         output += ("    0  1  2  3  4  5  6  7\n")
         output += ("  ##########################\n")
         for (let i = 0; i < boardSize; i++) {
@@ -104,7 +108,8 @@ class CheckersBoard {
 
     move(player, r1, c1, r2, c2, checkOnly = false) {
 
-        if(player == null) player = this.currentPlayer;
+        if(player == null) player = this.currentPlayer.id;
+        if(player.id != undefined) player = player.id;
 
         //check if move is within bounds
         if (r1 < 0 || r1 >= boardSize || c1 < 0 || c1 >= boardSize) return {success: false, message: 'Invalid source position'};
@@ -125,12 +130,12 @@ class CheckersBoard {
         //check if cell is empty
         let checker = this.getCell(r1, c1);
         if (checker === null) return {success: false, message: 'No checker at ' + r1 + ', ' + c1};
-        if (checker.player !== player) return {success: false, message: 'Not your checker. Other player\'s turn'};
+        if (checker.player.id !== player) return {success: false, message: 'Not your checker. Other player\'s turn'};
 
         //check if move is forward if not kinged
         if (!checker.kinged) {
-            if (player.id === 0 && r2 < r1) return {success: false, message: 'Cannot move backwards'};
-            if (player.id === 1 && r2 > r1) return {success: false, message: 'Cannot move backwards'};
+            if (player === 0 && r2 < r1) return {success: false, message: 'Cannot move backwards'};
+            if (player === 1 && r2 > r1) return {success: false, message: 'Cannot move backwards'};
         }
 
         //check if move is a jump
@@ -141,7 +146,7 @@ class CheckersBoard {
             let c3 = c1 + dc / 2;
             let jumped = this.getCell(r3, c3);
             if (jumped === null) return {success: false, message: 'No checker to jump'};
-            if (jumped.player === player) return {success: false, message: 'Cannot jump your own checker'};
+            if (jumped.player.id === player) return {success: false, message: 'Cannot jump your own checker'};
             if (checkOnly == false) {
                 this.board[r3][c3] = null;
                 jumped.capture();
@@ -165,8 +170,8 @@ class CheckersBoard {
         checker.col = c2;
 
         //king checker if at end of board
-        if (r2 === 0 && player.id === 1) checker.kinged = true;
-        if (r2 === boardSize - 1 && player.id === 0) checker.kinged = true;
+        if (r2 === 0 && player === 1) checker.kinged = true;
+        if (r2 === boardSize - 1 && player === 0) checker.kinged = true;
 
         return {success: true, message: 'Move successful'};
     }
@@ -197,6 +202,94 @@ class CheckersBoard {
         }
     }
 
+}
+
+function convertMoveInt(fromRow, fromCol, move){
+    let toRow, toCol;
+    if(move == 0){
+        toRow = fromRow + 1;
+        toCol = fromCol + 1;
+    }else if(move == 1){
+        toRow = fromRow -1
+        toCol = fromCol + 1;
+    }else if(move == 2){
+        toRow = fromRow - 1;
+        toCol = fromCol - 1;
+    }else if(move == 3){
+        toRow = fromRow + 1;
+        toCol = fromCol - 1;
+    }else if(move == 4){
+        toRow = fromRow + 2;
+        toCol = fromCol + 2;
+    }else if(move == 5){
+        toRow = fromRow - 2;
+        toCol = fromCol + 2;
+    }else if(move == 6){
+        toRow = fromRow - 2;
+        toCol = fromCol - 2;
+    }else if(move == 7){
+        toRow = fromRow + 2;
+        toCol = fromCol - 2;
+    }
+    return [toRow, toCol];
+}
+
+
+function getMove(game, player, playerIndex){
+
+    let input = game.getBoardState(playerIndex);
+    let output = player.predict(input);
+    //output is a 3*8 array where [0,1,2,3] are the from row, from col, to row, to col respectively
+    // the last 8 elements are the probabilities of each possible move 1-4 directions are for single moves, 5-8 are for double moves
+    
+
+    //find highest valid probability from position
+    let options = []
+    for(let i in output[0]){
+        let row = Math.floor(i/boardSize);
+        let col = i%boardSize;
+        if(game.board.getCell(row, col) == null) continue
+        if(game.board.getCell(row, col).player.id == playerIndex)
+            options.push({row: row, col: col, prob: output[0][i] });
+    }
+
+    //sort options by probability
+    options.sort((a,b) => (a.prob > b.prob) ? -1 : ((b.prob > a.prob) ? 1 : 0));
+
+    let fromRow = options[0].row;
+    let fromCol = options[0].col;
+    let toCol, toRow;
+
+
+    let moveOptions = [];
+    //find highest valid probability move from position
+    for(let opt of options){
+        fromRow = opt.row;
+        fromCol = opt.col;
+        for(let i in output[1]){
+            let [toRow, toCol] = convertMoveInt(fromRow, fromCol, i);
+            let res = game.board.move(playerIndex, fromRow, fromCol, toRow, toCol, true); //move(player, r1, c1, r2, c2, checkOnly = false)
+            if(res.success){
+                moveOptions.push({move: i, prob: output[1][i], fromCol, fromRow, toCol, toRow});
+            }
+        }
+        if (moveOptions.length > 0) break;
+    }
+    //sort moveOptions by probability
+    moveOptions.sort((a,b) => (a.prob > b.prob) ? -1 : ((b.prob > a.prob) ? 1 : 0));
+
+    
+    let final_move = moveOptions[0];
+
+    if (final_move == null) return null;
+
+    fromRow = final_move.fromRow;
+    fromCol = final_move.fromCol;
+    toRow = final_move.toRow;
+    toCol = final_move.toCol;
+
+
+    return {fromRow, fromCol, toRow, toCol};
 }
 
 class CheckersGame {
@@ -236,7 +329,7 @@ class CheckersGame {
     }
 
     print(){
-        this.board.printBoard(this.currentPlayer.id);
+        this.board.printBoard(this.currentPlayer.id, this.moveCount);
     }
 
     getState() {
@@ -246,21 +339,21 @@ class CheckersGame {
         }
     }
 
-    getBoardState(){
+    getBoardState(playerIndex){
         //gives NN input of the board state
         let boardState = [];
         for (let i = 0; i < boardSize; i++) {
             for (let j = 0; j < boardSize; j++) {
-                if ((i + j) % 2 === 0) continue;
                 //check if possible cell
                 let checker = this.board.getCell(i, j);
+                //1 if player 1, -1 if player 2, 0 if empty
+                //if kinged, 2 or -2
                 if (checker === null) {
                     boardState.push(0);
-                    boardState.push(0);
+                }else if(checker.player.id === playerIndex){
+                    boardState.push(checker.kinged ? 2 : 1);
                 }else{
-                    boardState.push(checker.player.id === 0 ? 1 : 0);
-                    boardState.push(checker.player.id === 1 ? 1 : 0);
-
+                    boardState.push(checker.kinged ? -2 : -1);
                 }
             }
         }
@@ -322,7 +415,7 @@ function runRandomGame(n=1){
         while(game.state == "playing"){
             let moves = game.getPossibleMoves();
             if (moves.length === 0) break;
-            let state = game.getBoardState();
+            let state = game.getBoardState(game.currentPlayer.id);
             let move = moves[Math.floor(Math.random() * moves.length)];
             data.states.push(state);
             data.moves.push([...move]);
@@ -399,14 +492,153 @@ function test()
 
     let possibleMoves = game.getPossibleMoves();
     console.log(possibleMoves);
+    
 }
 
 test()
 
-let randomData = runRandomGame();
+const oneHotEncoder = (v, size) => {
+    let oneHot = new Array(size).fill(0);
+    for (let i = 0; i < size; i++) {
+        if(i == v) oneHot[i] = 1;
+    }
+    return oneHot;
+}
 
-console.time("generateAndSaveData");
-generateAndSaveData(300);
-console.timeEnd("generateAndSaveData");
+function trainModel(){
+    let NN = new NeuralNetwork( 8*8, [60, 60, 60], [8*8,8] )
+    let data = runRandomGame(100);
+    let states = data.states; //X
+    let moves = data.moves; //Y [r1, c1, r2, c2]
+    let player = data.player; //player id
+
+
+    //convert moves to radial directions 16->8
+    let encodedMoves = moves.map(m => {
+
+        //map r1,c1 to 64 length array
+        let m1 = oneHotEncoder(m[0]*8 + m[1], 64);
+
+        let r = m[2] - m[0];
+        let c = m[3] - m[1];
+        let move = 0;
+        //convert to radial directions 0-7
+        if(r == 1 && c == 1) move = 0;
+        else if(r == -1 && c == 1) move = 1;
+        else if(r == -1 && c == -1) move = 2;
+        else if(r == 1 && c == -1) move = 3;
+        else if(r == 2 && c == 2) move = 4;
+        else if(r == -2 && c == 2) move = 5;
+        else if(r == -2 && c == -2) move = 6;
+        else if(r == 2 && c == -2) move = 7;
+
+        let m2 = oneHotEncoder(move, 8);
+
+        return [m1, m2];
+    })
+    
+
+    //console.log(encodedMoves);
+
+    let X = tf.tensor(states);
+    console.log(X.shape)
+    
+    let Y1 = tf.tensor(encodedMoves.map(m => m[0]));
+    let Y2 = tf.tensor(encodedMoves.map(m => m[1]));
+    console.log(Y1.shape, Y2.shape);
+    NN.model.compile({ 
+        optimizer: 'adam',
+        loss: 'binaryCrossentropy',
+        metrics: ['accuracy']
+    });
+
+    
+    NN.model.fit(X, [Y1, Y2], { epochs: 5, batch_size: 200, shuffle: true }).then((info) => {
+        console.log("Training complete")
+        console.log(info);
+        //plot loss
+        let loss = info.history.loss;
+        let epochs = loss.length;
+        console.log(asciichart.plot(loss, { height: 20, colors: [ asciichart.blue] }));
+
+        evolve(NN)
+    })
+
+}
+
+function sumArray(arr){
+    return arr.reduce((a,b) => a+b, 0);
+}
+
+function scoreGame(game){
+    let players = [0, 1]
+    let scores = players.map(p => game.getBoardState(p));
+    return scores.map(sumArray);
+}
+
+
+function evolve(seedModel, models){
+
+        let relatives, scores;
+
+        if (seedModel){
+            relatives = new Array(10).fill(0).map(() => seedModel.copy());
+            relatives.forEach(r => r.mutate(0.1));
+            relatives.push(seedModel);
+            scores = new Array(relatives.length).fill(0);
+        }else{
+            relatives = models;
+            scores = new Array(relatives.length).fill(0);
+        }
+
+        //play games with each other and keep the top 5
+        for(let i = 0; i < 30; i++){
+            let random = Math.floor(Math.random() * relatives.length);
+            let random2 = Math.floor(Math.random() * relatives.length);
+            if (random == random2) continue; //don't play against yourself
+            let s = playGameWithModels([relatives[random], relatives[random2]]);
+            scores[random] += s[0];
+            scores[random2] += s[1];
+        }
+
+        //get top 5 from scores
+        let topRelativeIndexes = scores.map((s, i) => [s, i]).sort((a,b) => b[0] - a[0]).slice(0,5).map(i => i[1]);
+        let topRelatives = topRelativeIndexes.map(i => relatives[i]);
+
+        //mate the top 5
+        let newRelatives = [];
+        for(let i = 0; i < 5; i++){
+            for(let j = i+1; j < 5; j++){
+                let child = topRelatives[i].mate(topRelatives[j]);
+                newRelatives.push(child);
+            }
+        }
+
+        evolve(null, newRelatives);
+}
+
+function playGameWithModels(models){
+    let game = new CheckersGame();
+    //game.print()
+    let state = game.getState();
+    let i = 0;
+    while (game.state == "playing" && i < 200){
+        i++;
+        let model = models[game.currentPlayer.id];
+        let move =  getMove(game, model, game.currentPlayer.id);
+        if(move == null) {
+            console.log("No possible moves");
+            break;
+        }
+        let result = game.move(move.fromRow, move.fromCol, move.toRow, move.toCol);
+        //game.print();
+    }
+    let scores = scoreGame(game);
+    console.log("Final score: ", scores);
+    return scores
+}
+
+trainModel()
+//console.log(runRandomGame(1))
 
 export default CheckersGame;
