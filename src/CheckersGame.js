@@ -2,8 +2,9 @@ import { assert } from "@vue/compiler-core";
 import * as deepcopy from 'deepcopy';
 import fs from 'fs';
 import NeuralNetwork from "./NN/NeuralNetwork.js";
-import tf, { math } from '@tensorflow/tfjs-node-gpu'
+import tf, { math } from '@tensorflow/tfjs-node'
 import asciichart from "asciichart";
+import cliProgress from "cli-progress"
 
 const boardSize = 8;
 
@@ -252,7 +253,6 @@ function getMove(game, player, playerIndex){
         if(game.board.getCell(row, col).player.id == playerIndex)
             options.push({row: row, col: col, prob: output[0][i] });
     }
-
     //sort options by probability
     options.sort((a,b) => (a.prob > b.prob) ? -1 : ((b.prob > a.prob) ? 1 : 0));
 
@@ -472,6 +472,29 @@ function test()
     assert (res.success==true, "Expected move to succeed");
     game.board.printBoard();
 
+    game.print()
+    //check board state
+    console.log("Player 1 board state:")
+    let state = game.getBoardState(0);
+    //print by rows and columns for easier reading
+    for (let i = 0; i < boardSize; i++) {
+        let row = "";
+        for (let j = 0; j < boardSize; j++) {
+            row += state[i*boardSize + j] + ", ";
+        }
+        console.log(row);
+    }
+    console.log("Player 2 board state:")
+    state = game.getBoardState(1);
+    //print by rows and columns for easier reading
+    for (let i = 0; i < boardSize; i++) {
+        let row = "";
+        for (let j = 0; j < boardSize; j++) {
+            row += state[i*boardSize + j] + ", ";
+        }
+        console.log(row);
+    }
+
     //p2 will jump onto its own checker
     res = game.move(7, 6, 5, 4)
     assert (res.success==false, "Expected move to fail");
@@ -577,6 +600,91 @@ function scoreGame(game){
 }
 
 
+async function makeACheckerPlayer(){
+
+    let populationSize = 20;
+    //create a random set of models
+    let models = new Array(populationSize).fill(0).map(() => new NeuralNetwork( 8*8, [60, 90], [8*8,8] ));
+    let scores = new Array(models.length).fill(0);
+
+    let max = 10;
+    let ii = 0;
+    while (ii < max ){ ii++;
+
+        console.log("Models:", models.length)
+        console.log(models)
+        // update the current value in your application..
+        console.log("Starting Game Round:", ii)
+        const bar1 = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
+
+        //play games with each other and keep the top 5
+        //everyone will play against everyone
+        let plays = 0;
+        let playCombos = [];
+        for (let i = 0; i < models.length; i++){
+            for (let j = i+1; j < models.length; j++){
+                //dont play against yourself
+                if (i == j) continue;
+                playCombos.push([i,j]);
+            }
+        }
+
+        bar1.start(playCombos.length, 0);
+
+        let results = playCombos.map((c, i) => {
+            bar1.update(i);
+            return playGameWithModels([models[c[0]], models[c[1]]])
+        })
+     
+        console.log("Games finished")
+
+        results.forEach((r, i) => {
+            let c = playCombos[i];
+            scores[c[0]] += r[0];
+            scores[c[1]] += r[1];
+        })
+
+        bar1.stop();
+
+
+        //keep the top 50
+        let top = models.map((m, i) => [m, scores[i]]).sort((a,b) => b[1] - a[1]).slice(0, Math.floor(populationSize*0.5));
+
+        //print the top 5
+        console.log("Top 5 Scores:")
+        top.slice(0, 5).forEach(m => console.log(m[1]));
+
+        // //mate the top 5 models and mutate them
+        // let children = [];
+        // for (let i = 0; i < 5; i++){
+        //     for (let j = i+1; j < 5; j++){
+        //         children.push(top[i][0].mate(top[j][0]));
+        //     }
+        // }
+
+        //keep the top 5 and make 5 children each via mutation
+        let children = []
+        for (let i = 0; i < 5; i++){
+            for(let c = 0; c < 5; c++){
+                children.push(top[i][0].copy().mutate(0.5));
+            }
+        }
+
+        //mute the top 5 
+        top.forEach(m => m[0].mutate(0.5));
+
+        //combine the top 5 and children
+        models = top.map(m => m[0]).concat(children);
+        scores = new Array(models.length).fill(0);
+         // stop the progress bar
+
+    }
+
+
+
+}
+
+
 function evolve(seedModel, models){
 
         let relatives, scores;
@@ -622,23 +730,32 @@ function playGameWithModels(models){
     //game.print()
     let state = game.getState();
     let i = 0;
-    while (game.state == "playing" && i < 200){
+    while (game.state == "playing" && i < 150){
         i++;
         let model = models[game.currentPlayer.id];
-        let move =  getMove(game, model, game.currentPlayer.id);
+        let move = getMove(game, model, game.currentPlayer.id);
         if(move == null) {
-            console.log("No possible moves");
+            //console.log("No possible moves");
             break;
         }
         let result = game.move(move.fromRow, move.fromCol, move.toRow, move.toCol);
         //game.print();
     }
     let scores = scoreGame(game);
-    console.log("Final score: ", scores);
+
+    if (game.state != "playing") {
+        //we need to promote winning games
+        scores = scores.map(s => s + 100);
+    }else{
+        //we need to penalize long games and games that end in a draw
+        scores = scores.map(s => s - i*0.01);
+    }
+
+
+    //console.log("Final score: ", scores);
     return scores
 }
 
-trainModel()
-//console.log(runRandomGame(1))
+makeACheckerPlayer()
 
 export default CheckersGame;

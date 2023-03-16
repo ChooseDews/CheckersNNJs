@@ -33,7 +33,7 @@ export default class NeuralNetwork {
 
         x = tf.layers.dense({
             units: hiddenLayers[0],
-            activation: 'sigmoid'
+            activation: 'relu'
         }).apply(x);
 
         for (let i = 1; i < hiddenLayers.length; i++) {
@@ -58,9 +58,9 @@ export default class NeuralNetwork {
 
 
         //print model weights
-        this.model.weights.forEach(w => {
-            console.log(w.name, w.shape);
-        });
+        // this.model.weights.forEach(w => {
+        //     console.log(w.name, w.shape);
+        // });
     }
 
     normalizeWeights() {
@@ -134,11 +134,9 @@ export default class NeuralNetwork {
     }
 
     predict(input) {
-        return tf.tidy(() => {
             const xs = tf.tensor2d([input]);
             const ys = this.model.predict(xs);
             const outputs = ys.map((output) => output.dataSync());
             return outputs;
-        })
     }
 }
