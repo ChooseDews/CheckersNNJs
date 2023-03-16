@@ -147,9 +147,9 @@ class TicTacToe {
             winner = 1;
         }
         
-        if(win) console.log("Player " + winner + " wins!");
+        //if(win) console.log("Player " + winner + " wins!" + " | Turn: " + this.turns);
         if(this.turns === boardSize*boardSize && !win){
-            console.log("Tie!");
+            //console.log("Tie!" + " | Turn: " + this.turns);
             win = true;
             winner = null;
         }
@@ -176,6 +176,5 @@ class TicTacToe {
 
 }
 
-TicTacToe.test();
 
 export default TicTacToe;
