@@ -2,8 +2,6 @@
 import tf, { math } from '@tensorflow/tfjs-node-gpu'
 
 
-console.log(tf.getBackend());
-
 function randomGaussian(){
     let u = 0, v = 0;
     while(u === 0) u = Math.random();
@@ -32,8 +30,7 @@ export default class NeuralNetwork {
         let x = inputs;
 
         x = tf.layers.dense({
-            units: hiddenLayers[0],
-            activation: 'relu'
+            units: hiddenLayers[0]
         }).apply(x);
 
         for (let i = 1; i < hiddenLayers.length; i++) {

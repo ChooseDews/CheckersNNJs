@@ -1,6 +1,10 @@
-# NNCheckers
+# NN Games
+Simple Node.js and Vue application for training and playing with NN for differing games such a tic tac toe and checkers.
 
-This template should help get you started developing with Vue 3 in Vite.
+* tic tac toe: works
+* checkers: wip
+
+# Vue Build Instructions
 
 ## Recommended IDE Setup
 

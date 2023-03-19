@@ -1,6 +1,5 @@
 <script>
-import CheckersGames from "./../CheckersGame.js";
-import VueBarGraph from 'vue-bar-graph';
+import CheckersGames from "../games/checkers/CheckersGame.js";
 
 export default {
   name: "CheckersBoard",
@@ -106,7 +105,6 @@ export default {
     },
   },
   components: {
-    VueBarGraph
   }
 };
 </script>
@@ -143,21 +141,11 @@ export default {
     <div class="error" v-if="errorMsg">
       {{ errorMsg }}
     </div>
-
-    <div class="stats">
-
-      <vue-bar-graph
-        :points="wins"
-        :width="400"
-        :height="200"
-        :show-values="true"
-      />
-   
-    </div>
   </div>
 </template>
 
-<style>
+<style lang="scss" scoped>
+
 .board {
   display: flex;
   flex-direction: column;

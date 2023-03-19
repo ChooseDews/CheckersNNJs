@@ -1,10 +1,10 @@
 import { assert } from "@vue/compiler-core";
 import * as deepcopy from 'deepcopy';
 import fs from 'fs';
-import NeuralNetwork from "./NN/NeuralNetwork.js";
-import tf, { math } from '@tensorflow/tfjs-node'
+//import NeuralNetwork from "./NN/NeuralNetwork.js";
+//import tf, { math } from '@tensorflow/tfjs-node'
 import asciichart from "asciichart";
-import cliProgress from "cli-progress"
+///import cliProgress from "cli-progress"
 
 const boardSize = 8;
 
@@ -528,66 +528,66 @@ const oneHotEncoder = (v, size) => {
     return oneHot;
 }
 
-function trainModel(){
-    let NN = new NeuralNetwork( 8*8, [60, 60, 60], [8*8,8] )
-    let data = runRandomGame(100);
-    let states = data.states; //X
-    let moves = data.moves; //Y [r1, c1, r2, c2]
-    let player = data.player; //player id
+// function trainModel(){
+//     let NN = new NeuralNetwork( 8*8, [60, 60, 60], [8*8,8] )
+//     let data = runRandomGame(100);
+//     let states = data.states; //X
+//     let moves = data.moves; //Y [r1, c1, r2, c2]
+//     let player = data.player; //player id
 
 
-    //convert moves to radial directions 16->8
-    let encodedMoves = moves.map(m => {
+//     //convert moves to radial directions 16->8
+//     let encodedMoves = moves.map(m => {
 
-        //map r1,c1 to 64 length array
-        let m1 = oneHotEncoder(m[0]*8 + m[1], 64);
+//         //map r1,c1 to 64 length array
+//         let m1 = oneHotEncoder(m[0]*8 + m[1], 64);
 
-        let r = m[2] - m[0];
-        let c = m[3] - m[1];
-        let move = 0;
-        //convert to radial directions 0-7
-        if(r == 1 && c == 1) move = 0;
-        else if(r == -1 && c == 1) move = 1;
-        else if(r == -1 && c == -1) move = 2;
-        else if(r == 1 && c == -1) move = 3;
-        else if(r == 2 && c == 2) move = 4;
-        else if(r == -2 && c == 2) move = 5;
-        else if(r == -2 && c == -2) move = 6;
-        else if(r == 2 && c == -2) move = 7;
+//         let r = m[2] - m[0];
+//         let c = m[3] - m[1];
+//         let move = 0;
+//         //convert to radial directions 0-7
+//         if(r == 1 && c == 1) move = 0;
+//         else if(r == -1 && c == 1) move = 1;
+//         else if(r == -1 && c == -1) move = 2;
+//         else if(r == 1 && c == -1) move = 3;
+//         else if(r == 2 && c == 2) move = 4;
+//         else if(r == -2 && c == 2) move = 5;
+//         else if(r == -2 && c == -2) move = 6;
+//         else if(r == 2 && c == -2) move = 7;
 
-        let m2 = oneHotEncoder(move, 8);
+//         let m2 = oneHotEncoder(move, 8);
 
-        return [m1, m2];
-    })
+//         return [m1, m2];
+//     })
     
 
-    //console.log(encodedMoves);
+//     //console.log(encodedMoves);
 
-    let X = tf.tensor(states);
-    console.log(X.shape)
+//     let X = tf.tensor(states);
+//     console.log(X.shape)
     
-    let Y1 = tf.tensor(encodedMoves.map(m => m[0]));
-    let Y2 = tf.tensor(encodedMoves.map(m => m[1]));
-    console.log(Y1.shape, Y2.shape);
-    NN.model.compile({ 
-        optimizer: 'adam',
-        loss: 'binaryCrossentropy',
-        metrics: ['accuracy']
-    });
+//     let Y1 = tf.tensor(encodedMoves.map(m => m[0]));
+//     let Y2 = tf.tensor(encodedMoves.map(m => m[1]));
+//     console.log(Y1.shape, Y2.shape);
+//     NN.model.compile({ 
+//         optimizer: 'adam',
+//         loss: 'binaryCrossentropy',
+//         metrics: ['accuracy']
+//     });
 
     
-    NN.model.fit(X, [Y1, Y2], { epochs: 5, batch_size: 200, shuffle: true }).then((info) => {
-        console.log("Training complete")
-        console.log(info);
-        //plot loss
-        let loss = info.history.loss;
-        let epochs = loss.length;
-        console.log(asciichart.plot(loss, { height: 20, colors: [ asciichart.blue] }));
+//     NN.model.fit(X, [Y1, Y2], { epochs: 5, batch_size: 200, shuffle: true }).then((info) => {
+//         console.log("Training complete")
+//         console.log(info);
+//         //plot loss
+//         let loss = info.history.loss;
+//         let epochs = loss.length;
+//         console.log(asciichart.plot(loss, { height: 20, colors: [ asciichart.blue] }));
 
-        evolve(NN)
-    })
+//         evolve(NN)
+//     })
 
-}
+// }
 
 function sumArray(arr){
     return arr.reduce((a,b) => a+b, 0);
@@ -600,162 +600,162 @@ function scoreGame(game){
 }
 
 
-async function makeACheckerPlayer(){
+// async function makeACheckerPlayer(){
 
-    let populationSize = 20;
-    //create a random set of models
-    let models = new Array(populationSize).fill(0).map(() => new NeuralNetwork( 8*8, [60, 90], [8*8,8] ));
-    let scores = new Array(models.length).fill(0);
+//     let populationSize = 20;
+//     //create a random set of models
+//     let models = new Array(populationSize).fill(0).map(() => new NeuralNetwork( 8*8, [60, 90], [8*8,8] ));
+//     let scores = new Array(models.length).fill(0);
 
-    let max = 10;
-    let ii = 0;
-    while (ii < max ){ ii++;
+//     let max = 10;
+//     let ii = 0;
+//     while (ii < max ){ ii++;
 
-        console.log("Models:", models.length)
-        console.log(models)
-        // update the current value in your application..
-        console.log("Starting Game Round:", ii)
-        const bar1 = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
+//         console.log("Models:", models.length)
+//         console.log(models)
+//         // update the current value in your application..
+//         console.log("Starting Game Round:", ii)
+//         const bar1 = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
 
-        //play games with each other and keep the top 5
-        //everyone will play against everyone
-        let plays = 0;
-        let playCombos = [];
-        for (let i = 0; i < models.length; i++){
-            for (let j = i+1; j < models.length; j++){
-                //dont play against yourself
-                if (i == j) continue;
-                playCombos.push([i,j]);
-            }
-        }
+//         //play games with each other and keep the top 5
+//         //everyone will play against everyone
+//         let plays = 0;
+//         let playCombos = [];
+//         for (let i = 0; i < models.length; i++){
+//             for (let j = i+1; j < models.length; j++){
+//                 //dont play against yourself
+//                 if (i == j) continue;
+//                 playCombos.push([i,j]);
+//             }
+//         }
 
-        bar1.start(playCombos.length, 0);
+//         bar1.start(playCombos.length, 0);
 
-        let results = playCombos.map((c, i) => {
-            bar1.update(i);
-            return playGameWithModels([models[c[0]], models[c[1]]])
-        })
+//         let results = playCombos.map((c, i) => {
+//             bar1.update(i);
+//             return playGameWithModels([models[c[0]], models[c[1]]])
+//         })
      
-        console.log("Games finished")
+//         console.log("Games finished")
 
-        results.forEach((r, i) => {
-            let c = playCombos[i];
-            scores[c[0]] += r[0];
-            scores[c[1]] += r[1];
-        })
+//         results.forEach((r, i) => {
+//             let c = playCombos[i];
+//             scores[c[0]] += r[0];
+//             scores[c[1]] += r[1];
+//         })
 
-        bar1.stop();
-
-
-        //keep the top 50
-        let top = models.map((m, i) => [m, scores[i]]).sort((a,b) => b[1] - a[1]).slice(0, Math.floor(populationSize*0.5));
-
-        //print the top 5
-        console.log("Top 5 Scores:")
-        top.slice(0, 5).forEach(m => console.log(m[1]));
-
-        // //mate the top 5 models and mutate them
-        // let children = [];
-        // for (let i = 0; i < 5; i++){
-        //     for (let j = i+1; j < 5; j++){
-        //         children.push(top[i][0].mate(top[j][0]));
-        //     }
-        // }
-
-        //keep the top 5 and make 5 children each via mutation
-        let children = []
-        for (let i = 0; i < 5; i++){
-            for(let c = 0; c < 5; c++){
-                children.push(top[i][0].copy().mutate(0.5));
-            }
-        }
-
-        //mute the top 5 
-        top.forEach(m => m[0].mutate(0.5));
-
-        //combine the top 5 and children
-        models = top.map(m => m[0]).concat(children);
-        scores = new Array(models.length).fill(0);
-         // stop the progress bar
-
-    }
+//         bar1.stop();
 
 
+//         //keep the top 50
+//         let top = models.map((m, i) => [m, scores[i]]).sort((a,b) => b[1] - a[1]).slice(0, Math.floor(populationSize*0.5));
 
-}
+//         //print the top 5
+//         console.log("Top 5 Scores:")
+//         top.slice(0, 5).forEach(m => console.log(m[1]));
 
+//         // //mate the top 5 models and mutate them
+//         // let children = [];
+//         // for (let i = 0; i < 5; i++){
+//         //     for (let j = i+1; j < 5; j++){
+//         //         children.push(top[i][0].mate(top[j][0]));
+//         //     }
+//         // }
 
-function evolve(seedModel, models){
+//         //keep the top 5 and make 5 children each via mutation
+//         let children = []
+//         for (let i = 0; i < 5; i++){
+//             for(let c = 0; c < 5; c++){
+//                 children.push(top[i][0].copy().mutate(0.5));
+//             }
+//         }
 
-        let relatives, scores;
+//         //mute the top 5 
+//         top.forEach(m => m[0].mutate(0.5));
 
-        if (seedModel){
-            relatives = new Array(10).fill(0).map(() => seedModel.copy());
-            relatives.forEach(r => r.mutate(0.1));
-            relatives.push(seedModel);
-            scores = new Array(relatives.length).fill(0);
-        }else{
-            relatives = models;
-            scores = new Array(relatives.length).fill(0);
-        }
+//         //combine the top 5 and children
+//         models = top.map(m => m[0]).concat(children);
+//         scores = new Array(models.length).fill(0);
+//          // stop the progress bar
 
-        //play games with each other and keep the top 5
-        for(let i = 0; i < 30; i++){
-            let random = Math.floor(Math.random() * relatives.length);
-            let random2 = Math.floor(Math.random() * relatives.length);
-            if (random == random2) continue; //don't play against yourself
-            let s = playGameWithModels([relatives[random], relatives[random2]]);
-            scores[random] += s[0];
-            scores[random2] += s[1];
-        }
-
-        //get top 5 from scores
-        let topRelativeIndexes = scores.map((s, i) => [s, i]).sort((a,b) => b[0] - a[0]).slice(0,5).map(i => i[1]);
-        let topRelatives = topRelativeIndexes.map(i => relatives[i]);
-
-        //mate the top 5
-        let newRelatives = [];
-        for(let i = 0; i < 5; i++){
-            for(let j = i+1; j < 5; j++){
-                let child = topRelatives[i].mate(topRelatives[j]);
-                newRelatives.push(child);
-            }
-        }
-
-        evolve(null, newRelatives);
-}
-
-function playGameWithModels(models){
-    let game = new CheckersGame();
-    //game.print()
-    let state = game.getState();
-    let i = 0;
-    while (game.state == "playing" && i < 150){
-        i++;
-        let model = models[game.currentPlayer.id];
-        let move = getMove(game, model, game.currentPlayer.id);
-        if(move == null) {
-            //console.log("No possible moves");
-            break;
-        }
-        let result = game.move(move.fromRow, move.fromCol, move.toRow, move.toCol);
-        //game.print();
-    }
-    let scores = scoreGame(game);
-
-    if (game.state != "playing") {
-        //we need to promote winning games
-        scores = scores.map(s => s + 100);
-    }else{
-        //we need to penalize long games and games that end in a draw
-        scores = scores.map(s => s - i*0.01);
-    }
+//     }
 
 
-    //console.log("Final score: ", scores);
-    return scores
-}
 
-makeACheckerPlayer()
+// }
+
+
+// function evolve(seedModel, models){
+
+//         let relatives, scores;
+
+//         if (seedModel){
+//             relatives = new Array(10).fill(0).map(() => seedModel.copy());
+//             relatives.forEach(r => r.mutate(0.1));
+//             relatives.push(seedModel);
+//             scores = new Array(relatives.length).fill(0);
+//         }else{
+//             relatives = models;
+//             scores = new Array(relatives.length).fill(0);
+//         }
+
+//         //play games with each other and keep the top 5
+//         for(let i = 0; i < 30; i++){
+//             let random = Math.floor(Math.random() * relatives.length);
+//             let random2 = Math.floor(Math.random() * relatives.length);
+//             if (random == random2) continue; //don't play against yourself
+//             let s = playGameWithModels([relatives[random], relatives[random2]]);
+//             scores[random] += s[0];
+//             scores[random2] += s[1];
+//         }
+
+//         //get top 5 from scores
+//         let topRelativeIndexes = scores.map((s, i) => [s, i]).sort((a,b) => b[0] - a[0]).slice(0,5).map(i => i[1]);
+//         let topRelatives = topRelativeIndexes.map(i => relatives[i]);
+
+//         //mate the top 5
+//         let newRelatives = [];
+//         for(let i = 0; i < 5; i++){
+//             for(let j = i+1; j < 5; j++){
+//                 let child = topRelatives[i].mate(topRelatives[j]);
+//                 newRelatives.push(child);
+//             }
+//         }
+
+//         evolve(null, newRelatives);
+// }
+
+// function playGameWithModels(models){
+//     let game = new CheckersGame();
+//     //game.print()
+//     let state = game.getState();
+//     let i = 0;
+//     while (game.state == "playing" && i < 150){
+//         i++;
+//         let model = models[game.currentPlayer.id];
+//         let move = getMove(game, model, game.currentPlayer.id);
+//         if(move == null) {
+//             //console.log("No possible moves");
+//             break;
+//         }
+//         let result = game.move(move.fromRow, move.fromCol, move.toRow, move.toCol);
+//         //game.print();
+//     }
+//     let scores = scoreGame(game);
+
+//     if (game.state != "playing") {
+//         //we need to promote winning games
+//         scores = scores.map(s => s + 100);
+//     }else{
+//         //we need to penalize long games and games that end in a draw
+//         scores = scores.map(s => s - i*0.01);
+//     }
+
+
+//     //console.log("Final score: ", scores);
+//     return scores
+// }
+
+// makeACheckerPlayer()
 
 export default CheckersGame;

@@ -4,7 +4,7 @@ const boardSize = 3;
 
 class TicTacToe {
 
-    constructor() {
+    constructor(record=false) {
         this.board = new Array(boardSize);
         for (let i = 0; i < boardSize; i++) this.board[i] = new Array(boardSize);
         
@@ -13,19 +13,32 @@ class TicTacToe {
         this.gameOver = false;
         this.winner = null;
         this.turns = 0;
+        this.history = [];
+        this.record = record;
+    }
+
+    clone(){
+        let clone = new TicTacToe();
+        clone.board = this.board.map(row => row.map(cell => cell));
+        clone.currentPlayer = this.currentPlayer;
+        clone.gameOver = this.gameOver;
+        clone.winner = this.winner;
+        clone.turns = this.turns;
+        return clone;
     }
 
     place(player, x, y) {
         if (this.gameOver) return false;
         if (player !== this.currentPlayer) return false;
         if (this.board[x][y] !== undefined) return false;
+        if (this.record) this.history.push([player, x*boardSize + y, this.state(player)]);
         this.board[x][y] = player;
         this.turns++;
         this.currentPlayer = this.players[(this.players.indexOf(player) + 1) % 2];
         this.checkWin();
     }
 
-    state(player){
+    state(player=0){
         //1 is current player marker
         //-1 is opponent marker
         //0 is empty space

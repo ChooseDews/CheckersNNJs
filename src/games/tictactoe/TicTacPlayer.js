@@ -1,7 +1,11 @@
-import tfjs from '@tensorflow/tfjs-node';
 import assert from 'node:assert/strict';
-import deepcopy from 'deepcopy';
 
+import * as tfjsWeb from '@tensorflow/tfjs';
+if (typeof window != 'undefined') { //this allows the code to run using tfjs-node if in node environment and previously imported tfjs-node
+    window.tfjs = tfjsWeb
+}else if(typeof tfjs == 'undefined'){
+    global.tfjs = tfjsWeb
+}
 
 function genId(n=10){
     let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -13,10 +17,11 @@ function genId(n=10){
 }
 
 class TicTacPlayer {
-    constructor(id=0) {
+    constructor(id=0, verbose=false) {
         if (id !== 0 && id !== 1) throw new Error("Invalid player id");
         this.setId(id);
         this.uniqueId = genId();
+        this.verbose = verbose
     }
     
     setId(id) {
@@ -26,7 +31,6 @@ class TicTacPlayer {
     }
 
 }
-
 
 class RandomTicTacPlayer extends TicTacPlayer {
     makeMove(game) {
@@ -42,11 +46,54 @@ class RandomTicTacPlayer extends TicTacPlayer {
 }
 
 
+class ConditionalTicTacPlayer extends TicTacPlayer {
 
+    //uses single move forward lookahead to determine best move win, block, or random
+    makeMove(game) {
+
+        let possibleMoves = game.getPossibleMoves();
+        //conver to array of indices where possibleMoves[i] is true
+        let possibleIndices = [];
+        for (let i = 0; i < possibleMoves.length; i++) if (possibleMoves[i]) possibleIndices.push(i);
+        let verbose = this.verbose;
+
+        //find move that will win the game
+        for (let i = 0; i < possibleIndices.length; i++) {
+            let index = possibleIndices[i];
+            let [row, col] = game.getRowCol(index);
+            let testGame = game.clone()
+            testGame.place(this.id, row, col);
+            if (testGame.gameOver) {
+                if(verbose) console.log("winning move");
+                return game.place(this.id, row, col);
+            }
+        }
+
+        //find move that will block the opponent from winning
+        let opponentId = (this.id === 0) ? 1 : 0;
+        for (let i = 0; i < possibleIndices.length; i++) {
+            let index = possibleIndices[i];
+            let [row, col] = game.getRowCol(index);
+            let testGame = game.clone()
+            testGame.currentPlayer = opponentId; //set current player to opponent so that they can make a move
+            testGame.place(opponentId, row, col);
+            if (testGame.gameOver) {
+                if(verbose) console.log("blocking move");
+                return game.place(this.id, row, col);
+            }
+        }
+
+        //choose random index
+        if(verbose) console.log("random move");
+        let index = possibleIndices[Math.floor(Math.random() * possibleIndices.length)];
+        let [row, col] = game.getRowCol(index);
+        return game.place(this.id, row, col);
+    }
+
+}
 
 
 //NNPlayer
-
 class NNPlayer extends TicTacPlayer {
     constructor(id=0, model=null) {
         super(id);
@@ -56,7 +103,6 @@ class NNPlayer extends TicTacPlayer {
         }
         this.model = new NNModel();
     }
-
     makeMove(game) {
         let state = game.state(this.id);
         let moveProbs = this.model.predict(state); //array of probabilities for each move
@@ -75,15 +121,13 @@ class NNPlayer extends TicTacPlayer {
                 maxIndex = index;
             }
         }
-
-        //console.log("NNPlayer move: ", maxIndex, maxProb)
-
         if (maxIndex === -1 && possibleIndices.length === 0) throw new Error("No possible moves");
-        if (maxIndex === -1) maxIndex = possibleIndices[0]
-
+        if (maxIndex === -1){
+             maxIndex = possibleIndices[0]
+                console.log("NNPlayer move: ", maxIndex, maxProb)
+            }
         let [row, col] = game.getRowCol(maxIndex);
         return game.place(this.id, row, col);
-
     }
 
     static population(n) {
@@ -93,6 +137,31 @@ class NNPlayer extends TicTacPlayer {
         }
         return population;
     }
+
+    static async load(id=0) {
+        let model = await tfjs.loadModel("/models/tictactoe/model.json"); //can only run in browser tfjs version!!
+        let NN = new NNModel(model);
+        return new NNPlayer(id, NN);
+    }
+
+    async train(moves, epochs=150, batchSize=100) {
+        let player = moves.map(move => move[0]);
+        let outputMove = moves.map(move => move[1]);
+        let states = moves.map(move => move[2]);
+        let statesTensor = tfjs.tensor(states);
+
+        //convert outputMove to one hot encoding which is the desired output probability distribution
+        let outputMoveTensor = tfjs.oneHot(outputMove, 9);
+        
+        console.log("Starting training...")
+        let info = await this.model.model.fit(statesTensor, outputMoveTensor, {epochs, batchSize, verbose: 1});
+    
+        statesTensor.dispose();
+        outputMoveTensor.dispose();
+        console.log(info);
+        return info
+    }
+
 
     async copy(){
         return new NNPlayer(this.id, await this.model.copy());
@@ -120,26 +189,23 @@ function randomGaussian(mean=0, stdev=1) {
 }
 
 class NNModel {
-
-    constructor(model=null, hiddenLayers=[20, 20]) {
-
+    constructor(model=null, hiddenLayers=[36,36,36]) {
         if (model) {
             this.model = model;
             return;
         }
-
         //create model with 9 input nodes, middle layers, and 9 output nodes with softmax activation
         this.model = tfjs.sequential();
-        this.model.add(tfjs.layers.dense({ units: 9, inputShape: [9], activation: 'relu' }));
+        this.model.add(tfjs.layers.dense({ units: 9, inputShape: [9], activation: 'tanh' }));
 
         //add hidden layers
         for (let i = 0; i < hiddenLayers.length; i++) {
-            this.model.add(tfjs.layers.dense({ units: hiddenLayers[i], activation: 'relu' }));
+            this.model.add(tfjs.layers.dense({ units: hiddenLayers[i], activation: 'tanh' }));
         }
 
         //add output layer
         this.model.add(tfjs.layers.dense({ units: 9, activation: 'softmax' }));
-        this.model.compile({ loss: 'categoricalCrossentropy', optimizer: 'adam' });
+        this.model.compile({ loss: 'categoricalCrossentropy', optimizer: 'adam', metrics: ['accuracy'] });
     }
 
     predict(state) {
@@ -149,14 +215,32 @@ class NNModel {
         return output.dataSync();
     }
 
-    async mutate() { //mutate the weights of the model
+    async mutate(std=0.1) { //mutate the weights of the model
         let weights = this.model.getWeights();
         for (let layer in weights) {
             let layer_data = await weights[layer].data();
-            for (let i = 0; i < layer_data.length; i++) layer_data[i] += randomGaussian(0, 0.1);
+            for (let i = 0; i < layer_data.length; i++) layer_data[i] += randomGaussian(0, std);
         }
         this.model.setWeights(weights);
     }
+
+    async crossover(parent2) { //crossover the weights of the model with another model
+        //returns a fresh child model
+        let child = await this.copy(); //copy parent model
+        let parent2Copy = await parent2.copy(); //copy parent2 model
+        let weights = child.model.getWeights();
+        let parent2Weights = parent2Copy.model.getWeights();
+        for (let [layer, layer2] of zip([weights, parent2Weights])) {
+            let layer_data = await layer.data();
+            let layer2_data = await layer2.data();
+            //50/50 chance of using each parent's weight
+            for (let i = 0; i < layer_data.length; i++) {
+                if (Math.random() < 0.5) layer_data[i] = layer2_data[i];
+            }
+        }
+        child.model.setWeights(weights);
+    }
+
 
     async copy() {
         let tf_model = await new Promise(resolve => this.model.save({ save: resolve }))
@@ -217,7 +301,7 @@ class NNModel {
     }
 }
 
-NNModel.test(); //runs silently if everything is working
+//NNModel.test(); //runs silently if everything is working
 
 
 
@@ -226,4 +310,4 @@ NNModel.test(); //runs silently if everything is working
 
 
 
-export { TicTacPlayer, RandomTicTacPlayer, NNPlayer };
+export { TicTacPlayer, RandomTicTacPlayer, NNPlayer, ConditionalTicTacPlayer };

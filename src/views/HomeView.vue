@@ -1,10 +1,15 @@
 <script setup>
-import TheWelcome from '../components/TheWelcome.vue'
 import CheckersBoard from '../components/CheckersBoard.vue'
 </script>
 
 <template>
-  <main>
-    <CheckersBoard />
-  </main>
+  <div class="container-fluid">
+    <div class="grid">
+      <div>
+        <h1>NN Checkers Game</h1>
+        <p>Work In Progress..</p>
+      </div>
+      <CheckersBoard />
+    </div>
+  </div>
 </template>
