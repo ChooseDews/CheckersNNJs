@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 
 import * as tfjsWeb from '@tensorflow/tfjs';
+
+console.log(tfjsWeb)
+
 if (typeof window != 'undefined') { //this allows the code to run using tfjs-node if in node environment and previously imported tfjs-node
     window.tfjs = tfjsWeb
 }else if(typeof tfjs == 'undefined'){
     global.tfjs = tfjsWeb
 }
+
 
 function genId(n=10){
     let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -139,7 +143,7 @@ class NNPlayer extends TicTacPlayer {
     }
 
     static async load(id=0) {
-        let model = await tfjs.loadModel("/models/tictactoe/model.json"); //can only run in browser tfjs version!!
+        let model = await tfjsWeb.loadLayersModel("/models/tictactoe/model.json"); //can only run in browser tfjs version!!
         let NN = new NNModel(model);
         return new NNPlayer(id, NN);
     }
